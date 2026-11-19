@@ -7,27 +7,27 @@
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
-    /* html darf auf iPadOS/iOS KEINE feste vh-Höhe und KEIN overflow-x: hidden haben */
     html {
       width: 100%;
-      background: #0a0a0a;
+      background: #000000;
       -webkit-overflow-scrolling: touch;
     }
 
     body {
       width: 100%;
-      background: #0a0a0a;
+      background: #000000;
       color: #ffffff;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     }
 
-    /* Echter Scroll-Container, damit iPad & iPhone flüssig scrollen */
+    /* Scroll-Fläche für Desktop */
     .scroll-spacer {
       width: 100%;
-      height: 900vh;
+      height: 850vh;
       pointer-events: none;
     }
 
+    /* Fixierte Vollbild-Videobühne */
     .stage {
       position: fixed;
       inset: 0;
@@ -35,17 +35,20 @@
       height: 100vh;
       height: 100dvh;
       z-index: 1;
+      background: #000000;
       pointer-events: none;
     }
 
-    #viewer {
+    #beeVideo {
       width: 100%;
       height: 100%;
-      border: none;
+      /* Füllt Hoch- und Querformat ohne Balken aus (Biene mittig halten!) */
+      object-fit: cover;
+      object-position: center center;
       display: block;
-      pointer-events: none;
     }
 
+    /* Schwebendes UI über dem Video */
     .overlay {
       position: fixed;
       inset: 0;
@@ -58,7 +61,7 @@
       flex-direction: column;
       justify-content: space-between;
       padding: 2.5rem 3.5rem;
-      background: radial-gradient(circle at center, transparent 45%, rgba(0, 0, 0, 0.55) 100%);
+      background: radial-gradient(circle at center, transparent 48%, rgba(0, 0, 0, 0.5) 100%);
     }
 
     header {
@@ -260,7 +263,7 @@
       line-height: 1.6;
     }
 
-    /* Tablets & Smartphones (inkl. iPad) */
+    /* Tablets & iPad */
     @media (max-width: 1024px) {
       .scroll-spacer { height: 550vh; }
       .overlay { padding: 1.5rem 1.75rem calc(1.5rem + env(safe-area-inset-bottom)); }
@@ -268,6 +271,7 @@
       .story-card { max-width: 560px; }
     }
 
+    /* Smartphones */
     @media (max-width: 768px) {
       .overlay { padding: 1.25rem 1.25rem calc(1.25rem + env(safe-area-inset-bottom)); }
       .logo { font-size: 0.95rem; }
@@ -284,11 +288,18 @@
 </head>
 <body>
 
-  <!-- Scroll-Fläche für Desktop, iPad und Smartphone -->
   <div class="scroll-spacer"></div>
 
+  <!-- MP4-Video statt schwerem WebGL-Viewer -->
   <div class="stage">
-    <iframe id="viewer" allow="fullscreen; xr-spatial-tracking"></iframe>
+    <video
+      id="beeVideo"
+      src="biene.mp4"
+      muted
+      playsinline
+      webkit-playsinline
+      preload="auto"
+    ></video>
   </div>
 
   <div class="overlay">
@@ -301,29 +312,34 @@
     </header>
 
     <div class="story-container">
+      <!-- 1. Frame 0: Einstieg -->
       <div class="story-card hero-style" id="card-0">
         <h1>Finns<br />Bienenwelt</h1>
         <p>Tauche ein in die faszinierende Makro-Welt der Bienen. Scrolle nach unten, um mehr über ihre Wunderwerke und Anatomie zu erfahren.</p>
       </div>
 
+      <!-- 2. Frame 60: Beine & Maulwerkzeuge -->
       <div class="story-card fact-box" id="card-1">
         <span class="fact-badge">01 · Beine & Maulwerkzeuge</span>
         <h2>Präzisionswerkzeuge der Natur</h2>
         <p>Mit ihrem langen Saugrüssel schlürfen Bienen Nektar tief aus den Blütenkelchen, während spezielle Pollenkörbchen an den Hinterbeinen Millionen Blütenstaub-Körner sicher verpacken und nach Hause tragen.</p>
       </div>
 
+      <!-- 3. Frame 104: Augen & Kopf -->
       <div class="story-card fact-box" id="card-2">
         <span class="fact-badge">02 · Augen & Kopf</span>
         <h2>Fünf Augen & UV-Blick</h2>
         <p>Neben zwei großen Facettenaugen aus rund 5.000 Einzelaugen besitzen Bienen drei zusätzliche Punktaugen auf der Stirn. Da sie ultraviolettes Licht sehen, erkennen sie unsichtbare Landebahnen auf Blüten.</p>
       </div>
 
+      <!-- 4. Frame 138: Flügel & Rücken -->
       <div class="story-card fact-box" id="card-3">
         <span class="fact-badge">03 · Flügel & Rücken</span>
         <h2>230 Flügelschläge pro Sekunde</h2>
         <p>Im Flug verhaken sich Vorder- und Hinterflügel zu einer Tragfläche. Gleichzeitig lädt sich der dichte Pelz auf ihrem Rücken elektrostatisch auf und zieht Pollenkörner wie ein Magnet an.</p>
       </div>
 
+      <!-- 5. Frame 180: Ganzkörperansicht -->
       <div class="story-card fact-box" id="card-4">
         <span class="fact-badge">04 · Ganzkörperansicht</span>
         <h2>Dreimal um die Erde für ein Glas Honig</h2>
@@ -333,13 +349,14 @@
 
     <div class="bottom-bar">
       <div class="scroll-hint">
-        <span id="statusText">Lade 3D-Szene...</span>
+        <span id="statusText">Scrollen zum Steuern</span>
         <div class="scroll-bar"><div class="scroll-bar-fill" id="scrollFill"></div></div>
       </div>
       <div class="plateau-indicator" id="plateauIndicator">● Haltepunkt – Weiter scrollen</div>
     </div>
   </div>
 
+  <!-- Modal: Library -->
   <div class="modal-backdrop" id="modal-library" onclick="closeOnBackdrop(event, 'library')">
     <div class="modal-card">
       <button class="modal-close" onclick="closeModal('library')">&times;</button>
@@ -348,6 +365,7 @@
     </div>
   </div>
 
+  <!-- Modal: Portfolio -->
   <div class="modal-backdrop" id="modal-portfolio" onclick="closeOnBackdrop(event, 'portfolio')">
     <div class="modal-card">
       <button class="modal-close" onclick="closeModal('portfolio')">&times;</button>
@@ -357,10 +375,9 @@
   </div>
 
   <script>
-    const DESKTOP_SCENE = 'Biene.html';
-    const MOBILE_SCENE  = 'Biene-mobile.html';
-    const TOTAL_FRAMES  = 180;
+    const TOTAL_FRAMES = 180;
 
+    // Exakte Keyframe-Plateaus bei Frame 0, 60, 104, 138 und 180
     const PLATEAUS = [
       { id: 'card-0', scrollStart: 0.00, scrollEnd: 0.12, frameStart: 0,     frameEnd: 1.5, isStart: true },
       { id: 'card-1', scrollStart: 0.22, scrollEnd: 0.36, frameStart: 59,    frameEnd: 61 },
@@ -373,73 +390,25 @@
       animEnd: p.frameEnd / TOTAL_FRAMES
     }));
 
-    const viewer = document.getElementById('viewer');
+    const video = document.getElementById('beeVideo');
     const scrollFill = document.getElementById('scrollFill');
-    const statusText = document.getElementById('statusText');
     const plateauIndicator = document.getElementById('plateauIndicator');
     const cards = PLATEAUS.map(p => ({ ...p, el: document.getElementById(p.id) }));
 
-    let targetAnimProgress = 0;
-    let lastAppliedProgress = -1;
-    let iframeLoaded = false;
-    let timelineTrack = null;
-    let autoPlayPaused = false;
-    let isDraggingTimeline = false;
+    let targetProgress = 0;
+    let lastAppliedTime = -1;
+    let iosUnlocked = false;
 
-    async function selectBestScene() {
-      // Erkennt iPhones, Android-Phones und iPads (inkl. iPadOS Desktop-User-Agent)
-      const isIPad = /iPad/i.test(navigator.userAgent) ||
-        (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-      const isRealMobile = isIPad ||
-        /Android|webOS|iPhone|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
-        (window.matchMedia && window.matchMedia('(pointer: coarse)').matches && 'ontouchstart' in window);
-
-      if (isRealMobile && window.location.protocol !== 'file:') {
-        try {
-          const res = await fetch(MOBILE_SCENE, { method: 'HEAD' });
-          if (res.ok) {
-            viewer.src = MOBILE_SCENE;
-            return;
-          }
-        } catch (e) {}
-      }
-      viewer.src = DESKTOP_SCENE;
+    // iOS / iPadOS Trick: Aktiviert das sofortige Frame-Scrubbing beim ersten Berühren
+    function unlockVideoForIOS() {
+      if (iosUnlocked) return;
+      video.play().then(() => {
+        video.pause();
+        iosUnlocked = true;
+      }).catch(() => {});
     }
-
-    if (window.location.protocol === 'file:') {
-      statusText.textContent = 'Bitte über http://localhost:8000 öffnen!';
-      statusText.style.color = '#ff6b6b';
-      viewer.src = DESKTOP_SCENE;
-    } else {
-      selectBestScene();
-    }
-
-    viewer.addEventListener('load', () => {
-      try {
-        const doc = viewer.contentDocument || viewer.contentWindow.document;
-
-        // UI unsichtbar machen, aber Timeline-Leiste auf iPad/Mobile im DOM aktiv lassen (nicht display:none)
-        const hideStyle = doc.createElement('style');
-        hideStyle.textContent = `
-          .sse-viewer > *:not(canvas), #ui, .ui, [class*="sse-"]:not(.sse-viewer):not(canvas), button, input {
-            opacity: 0 !important;
-            pointer-events: none !important;
-          }
-          [class*="sse-timeline"], [class*="sse-scrubber"], [class*="sse-controls"], [class*="timeline"] {
-            display: flex !important;
-            visibility: visible !important;
-          }
-          .sse-viewer, canvas {
-            opacity: 1 !important;
-            visibility: visible !important;
-          }
-        `;
-        doc.head.appendChild(hideStyle);
-        iframeLoaded = true;
-      } catch (e) {
-        statusText.textContent = 'Bitte über http://localhost:8000 öffnen!';
-      }
-    });
+    window.addEventListener('touchstart', unlockVideoForIOS, { once: true, passive: true });
+    window.addEventListener('scroll', unlockVideoForIOS, { once: true, passive: true });
 
     function mapScrollToAnimation(s) {
       for (let i = 0; i < PLATEAUS.length; i++) {
@@ -503,7 +472,7 @@
 
       scrollFill.style.width = (rawScroll * 100) + '%';
       const mapped = mapScrollToAnimation(rawScroll);
-      targetAnimProgress = mapped.anim;
+      targetProgress = mapped.anim;
       updateStoryCards(mapped.activePlateauIndex, mapped.localT);
     }
 
@@ -512,134 +481,21 @@
     window.addEventListener('resize', updateScrollTarget, { passive: true });
     updateScrollTarget();
 
-    function detectTimeline(doc, win) {
-      const explicit = doc.querySelector(
-        'input[type="range"], [class*="sse-timeline"], [class*="sse-scrubber"], [class*="sse-progress"], [class*="timeline"], [class*="scrubber"]'
-      );
-      if (explicit) {
-        const r = explicit.getBoundingClientRect();
-        if (r.width > 40) return explicit;
-      }
+    // Synchronisiert das Video bildgenau mit dem Scroll-Fortschritt
+    function renderVideoFrame() {
+      if (video.readyState >= 2 && video.duration) {
+        // Sicherheitsabstand von 0.02s zum Ende, damit Safari das letzte Bild nicht schwarz schaltet
+        const maxTime = Math.max(0, video.duration - 0.02);
+        const targetTime = Math.min(maxTime, Math.max(0, targetProgress * maxTime));
 
-      const candidates = Array.from(doc.querySelectorAll('div, span'));
-      let best = null;
-      let bestScore = 0;
-
-      for (const el of candidates) {
-        if (el.querySelector('canvas') || el.classList.contains('sse-viewer')) continue;
-        const r = el.getBoundingClientRect();
-        if (
-          r.top > win.innerHeight * 0.65 &&
-          r.width > win.innerWidth * 0.20 &&
-          r.height >= 2 &&
-          r.height <= 48
-        ) {
-          const score = r.width - r.height * 2;
-          if (score > bestScore) {
-            bestScore = score;
-            best = el;
-          }
+        if (Math.abs(targetTime - lastAppliedTime) > 0.002 && !video.seeking) {
+          video.currentTime = targetTime;
+          lastAppliedTime = targetTime;
         }
       }
-      return best;
+      requestAnimationFrame(renderVideoFrame);
     }
-
-    function pauseAutoPlay(doc, win) {
-      if (autoPlayPaused) return;
-
-      // 1. Leertaste im Viewer auslösen (SuperSplat Shortcut für Wiedergabe/Pause)
-      const spaceEvt = new KeyboardEvent('keydown', {
-        key: ' ',
-        code: 'Space',
-        keyCode: 32,
-        which: 32,
-        bubbles: true,
-        cancelable: true
-      });
-      doc.dispatchEvent(spaceEvt);
-      win.dispatchEvent(spaceEvt);
-
-      // 2. Zusätzlich Play/Pause-Button klicken, falls vorhanden
-      const buttons = Array.from(doc.querySelectorAll('button, [role="button"], [class*="sse-"]'));
-      const playBtn = buttons.find(b => {
-        if (b.querySelector('canvas') || b.classList.contains('sse-viewer')) return false;
-        const r = b.getBoundingClientRect();
-        const label = (b.textContent + ' ' + (b.title || '') + ' ' + (b.ariaLabel || '') + ' ' + b.className).toLowerCase();
-        return /pause|play/.test(label) || (r.top > win.innerHeight * 0.65 && r.left < 140 && r.width > 8 && r.width < 80);
-      });
-
-      if (playBtn) {
-        playBtn.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
-        playBtn.dispatchEvent(new PointerEvent('pointerup', { bubbles: true }));
-        playBtn.click();
-      }
-      autoPlayPaused = true;
-    }
-
-    function scrubTimeline(el, win, progress) {
-      if (el.tagName === 'INPUT') {
-        const min = parseFloat(el.min || 0);
-        const max = parseFloat(el.max || 1);
-        el.value = min + progress * (max - min);
-        el.dispatchEvent(new Event('input', { bubbles: true }));
-        return;
-      }
-
-      const rect = el.getBoundingClientRect();
-      if (rect.width <= 10) return;
-
-      const clamped = Math.max(0.001, Math.min(0.999, progress));
-      const x = rect.left + clamped * rect.width;
-      const y = rect.top + rect.height / 2;
-
-      const baseEvt = {
-        bubbles: true,
-        cancelable: true,
-        view: win,
-        clientX: x,
-        clientY: y,
-        button: 0,
-        buttons: 1
-      };
-
-      if (!isDraggingTimeline) {
-        el.dispatchEvent(new PointerEvent('pointerdown', { ...baseEvt, pointerId: 1, pointerType: 'touch', isPrimary: true }));
-        el.dispatchEvent(new MouseEvent('mousedown', baseEvt));
-        isDraggingTimeline = true;
-      }
-
-      el.dispatchEvent(new PointerEvent('pointermove', { ...baseEvt, pointerId: 1, pointerType: 'touch', isPrimary: true }));
-      el.dispatchEvent(new MouseEvent('mousemove', baseEvt));
-    }
-
-    function syncAnimation() {
-      if (iframeLoaded) {
-        try {
-          const win = viewer.contentWindow;
-          const doc = viewer.contentDocument || win.document;
-
-          if (!timelineTrack || !doc.contains(timelineTrack)) {
-            isDraggingTimeline = false;
-            timelineTrack = detectTimeline(doc, win);
-            if (timelineTrack) {
-              if (window.location.protocol !== 'file:') {
-                statusText.textContent = 'Scrollen zum Steuern';
-              }
-              pauseAutoPlay(doc, win);
-              updateScrollTarget();
-              scrubTimeline(timelineTrack, win, targetAnimProgress);
-              lastAppliedProgress = targetAnimProgress;
-            }
-          } else if (Math.abs(targetAnimProgress - lastAppliedProgress) > 0.0003) {
-            scrubTimeline(timelineTrack, win, targetAnimProgress);
-            lastAppliedProgress = targetAnimProgress;
-          }
-        } catch (err) {}
-      }
-
-      requestAnimationFrame(syncAnimation);
-    }
-    requestAnimationFrame(syncAnimation);
+    requestAnimationFrame(renderVideoFrame);
 
     function openModal(name) { document.getElementById('modal-' + name).classList.add('active'); }
     function closeModal(name) { document.getElementById('modal-' + name).classList.remove('active'); }
