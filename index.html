@@ -27,7 +27,7 @@
       pointer-events: none;
     }
 
-    /* Fixierte Vollbild-Bühne für Video & 3D-Splat */
+    /* Fixierte Vollbild-Bühne für Platzhalter, Video & 3D-Splat */
     .stage {
       position: fixed;
       inset: 0;
@@ -37,6 +37,7 @@
       z-index: 1;
       background: #000000;
       pointer-events: none;
+      overflow: hidden;
     }
 
     #beeVideo,
@@ -60,13 +61,39 @@
       z-index: 1;
       opacity: 0;
       visibility: hidden;
-      transition: opacity 0.4s ease;
+      transition: opacity 0.45s ease;
     }
 
     #splatViewer.active {
       z-index: 3;
       opacity: 1;
       visibility: visible;
+    }
+
+    /* Platzhalterbild: 16:9-Cover-Box, deckungsgleich mit Video & 3D-Splat bei jeder Fensterbreite */
+    #posterPlaceholder {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: max(100vw, 177.78vh);
+      height: max(100vh, 56.25vw);
+      object-fit: cover;
+      object-position: center center;
+      border: none;
+      display: block;
+      pointer-events: none;
+      z-index: 4;
+      opacity: 1;
+      visibility: visible;
+      transition: opacity 0.6s cubic-bezier(0.22, 1, 0.36, 1),
+                  visibility 0.6s ease;
+      will-change: opacity;
+    }
+
+    #posterPlaceholder.hidden {
+      opacity: 0;
+      visibility: hidden;
     }
 
     /* Schwebendes UI über der Bühne */
@@ -367,15 +394,21 @@
 
   <div class="scroll-spacer"></div>
 
-  <!-- Vollbild-Bühne: Desktop startet im 3D Splat, Mobilgeräte im Video -->
+  <!-- Vollbild-Bühne: Unscharfes Standbild überbrückt die Ladezeit -->
   <div class="stage">
+    <img
+      id="posterPlaceholder"
+      src="biene-bild-blur.jpg"
+      onerror="if(!this.dataset.triedPng){this.dataset.triedPng='1';this.src='biene-bild-blur.png';}else{this.onerror=null;this.src='biene-bild.png';}"
+      alt=""
+    />
     <video
       id="beeVideo"
       src="biene.mp4"
       muted
       playsinline
       webkit-playsinline
-      preload="metadata"
+      preload="auto"
     ></video>
     <iframe id="splatViewer" allow="fullscreen; xr-spatial-tracking"></iframe>
   </div>
@@ -398,7 +431,7 @@
     </header>
 
     <div class="story-container">
-      <!-- 1. Start-Titel (blendet ab 8 % Scrollweg per CSS-Animation aus) -->
+      <!-- 1. Start-Titel -->
       <div class="story-card hero-style visible" id="card-0">
         <h1>Finns<br />Bienenwelt</h1>
         <p>Tauche ein in die faszinierende Makro-Welt der Bienen. Scrolle nach unten, um mehr über ihre Wunderwerke und Anatomie zu erfahren.</p>
@@ -478,6 +511,7 @@
       animEnd: p.frameEnd / TOTAL_FRAMES
     }));
 
+    const poster = document.getElementById('posterPlaceholder');
     const video = document.getElementById('beeVideo');
     const splatViewer = document.getElementById('splatViewer');
     const btnModeVideo = document.getElementById('btnModeVideo');
@@ -496,20 +530,36 @@
     // Video-Status
     let lastAppliedVideoTime = -1;
     let iosUnlocked = false;
+    let videoFirstFramePainted = false;
 
     // 3D-Splat-Status
     let splatInitialized = false;
     let splatIframeLoaded = false;
+    let splatSceneReady = false;
+    let splatReadyScheduled = false;
     let timelineTrack = null;
-    let autoPlayPaused = false;
     let isDraggingTimeline = false;
     let lastAppliedSplatProgress = -1;
+    let lastUserScrollTime = 0;
+    let lastPauseClickTime = 0;
+    let playheadCheckTime = 0;
+    let playheadCheckPos = null;
 
     // Performance-Überwachung für automatischen Fallback
-    let autoFallbackDisabled = false; // Wird true, falls User manuell auf 3D Splat wechselt
+    let autoFallbackDisabled = false;
     let splatReadyTimestamp = 0;
     let lowFpsCounter = 0;
     let lastFrameTime = performance.now();
+
+    function revealStage() {
+      poster.classList.add('hidden');
+    }
+
+    function showPosterWhileLoading() {
+      poster.classList.remove('hidden');
+    }
+
+    setTimeout(revealStage, 14000);
 
     function isMobileDevice() {
       const isIPad = /iPad/i.test(navigator.userAgent) ||
@@ -519,7 +569,6 @@
         (window.matchMedia && window.matchMedia('(pointer: coarse)').matches && 'ontouchstart' in window);
     }
 
-    // Prüft vorab auf fehlendes WebGL oder extrem schwache Hardware
     function isWeakDevice() {
       try {
         const testCanvas = document.createElement('canvas');
@@ -562,7 +611,7 @@
 
     function setRenderMode(mode, isManual = true) {
       if (isManual && mode === 'splat') {
-        autoFallbackDisabled = true; // Manueller Klick wird nicht sofort wieder übersteuert
+        autoFallbackDisabled = true;
       }
       if (currentMode === mode) return;
       currentMode = mode;
@@ -573,26 +622,54 @@
       if (mode === 'splat') {
         splatViewer.classList.add('active');
         lastAppliedSplatProgress = -1;
+        isDraggingTimeline = false;
+        playheadCheckPos = null;
         lowFpsCounter = 0;
+
+        if (!splatSceneReady) {
+          showPosterWhileLoading();
+        } else {
+          revealStage();
+          statusText.textContent = 'Scrollen zum Steuern';
+        }
+
         if (!splatInitialized) {
           loadSplatScene();
-        } else if (timelineTrack) {
-          statusText.textContent = 'Scrollen zum Steuern';
         }
       } else {
         splatViewer.classList.remove('active');
         video.preload = 'auto';
         lastAppliedVideoTime = -1;
         statusText.textContent = isManual ? 'Scrollen zum Steuern' : 'Video-Modus (Auto-Optimierung)';
+
+        if (videoFirstFramePainted) {
+          revealStage();
+        } else {
+          showPosterWhileLoading();
+        }
       }
     }
 
-    // Startmodus festlegen: Mobil -> Video, Schwacher Laptop -> Video, Desktop -> 3D Splat
     if (window.location.protocol === 'file:' || isMobileDevice() || isWeakDevice()) {
       setRenderMode('video', false);
     } else {
       setRenderMode('splat', false);
     }
+
+    video.addEventListener('loadeddata', () => {
+      video.currentTime = 0.001;
+    });
+
+    video.addEventListener('seeked', () => {
+      if (!videoFirstFramePainted && video.readyState >= 2) {
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            videoFirstFramePainted = true;
+            if (currentMode === 'video') revealStage();
+          });
+        });
+      }
+    });
 
     splatViewer.addEventListener('load', () => {
       if (!splatViewer.getAttribute('src')) return;
@@ -604,10 +681,6 @@
           .sse-viewer > *:not(canvas), #ui, .ui, [class*="sse-"]:not(.sse-viewer):not(canvas), button, input {
             opacity: 0 !important;
             pointer-events: none !important;
-          }
-          [class*="sse-timeline"], [class*="sse-scrubber"], [class*="sse-controls"], [class*="timeline"] {
-            display: flex !important;
-            visibility: visible !important;
           }
           .sse-viewer, canvas {
             opacity: 1 !important;
@@ -644,9 +717,7 @@
       return { anim: s, activePlateauIndex: -1 };
     }
 
-    // Schwellenwert-Steuerung: Löst CSS-Transitions aus statt per Scroll-Pixel zu scrubben
     function updateStoryCards(activeIndex, rawScroll) {
-      // Hero-Titel sichtbar bis 8 % Scrollweg, danach weicher CSS-Fade-Out
       heroCard.classList.toggle('visible', rawScroll <= 0.08);
 
       let onFactPlateau = false;
@@ -660,6 +731,7 @@
     }
 
     function updateScrollTarget() {
+      lastUserScrollTime = performance.now();
       const scrollTop = window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0;
       const maxScroll = Math.max(
         document.documentElement.scrollHeight - window.innerHeight,
@@ -679,6 +751,19 @@
     updateScrollTarget();
 
     // --- 3D Splat Hilfsfunktionen ---
+    function isSplatStillLoading(doc, win) {
+      const loaders = Array.from(doc.querySelectorAll('[id*="loading"], [class*="loading"], [class*="spinner"]'));
+      for (const el of loaders) {
+        const style = win.getComputedStyle(el);
+        const r = el.getBoundingClientRect();
+        if (style.display !== 'none' && style.visibility !== 'hidden' && r.width > 0 && r.height > 0) {
+          return true;
+        }
+      }
+      const text = (doc.body && doc.body.innerText) ? doc.body.innerText : '';
+      return /\b\d{1,3}\s*%/.test(text);
+    }
+
     function detectTimeline(doc, win) {
       const explicit = doc.querySelector(
         'input[type="range"], [class*="sse-timeline"], [class*="sse-scrubber"], [class*="sse-progress"], [class*="timeline"], [class*="scrubber"]'
@@ -696,10 +781,10 @@
         if (el.querySelector('canvas') || el.classList.contains('sse-viewer')) continue;
         const r = el.getBoundingClientRect();
         if (
-          r.top > win.innerHeight * 0.65 &&
+          r.top > win.innerHeight * 0.70 &&
           r.width > win.innerWidth * 0.20 &&
           r.height >= 2 &&
-          r.height <= 48
+          r.height <= 44
         ) {
           const score = r.width - r.height * 2;
           if (score > bestScore) {
@@ -711,37 +796,46 @@
       return best;
     }
 
-    function pauseAutoPlay(doc, win) {
-      if (autoPlayPaused) return;
+    // Misst die aktuelle Playhead-Position (0..1) der SuperSplat-Zeitleiste
+    function measureTimelineValue(el) {
+      if (el.tagName === 'INPUT') {
+        const min = parseFloat(el.min || 0);
+        const max = parseFloat(el.max || 1);
+        return max > min ? (parseFloat(el.value) - min) / (max - min) : null;
+      }
+      const trackRect = el.getBoundingClientRect();
+      if (trackRect.width <= 10) return null;
 
-      const spaceEvt = new KeyboardEvent('keydown', {
-        key: ' ',
-        code: 'Space',
-        keyCode: 32,
-        which: 32,
-        bubbles: true,
-        cancelable: true
-      });
-      doc.dispatchEvent(spaceEvt);
-      win.dispatchEvent(spaceEvt);
+      for (const ch of el.querySelectorAll('*')) {
+        const r = ch.getBoundingClientRect();
+        if (r.width > 0 && r.width < trackRect.width - 1 && Math.abs(r.left - trackRect.left) < 4) {
+          return r.width / trackRect.width;
+        }
+        if (r.width >= 2 && r.width <= 26 && r.left > trackRect.left + 1) {
+          return (r.left + r.width / 2 - trackRect.left) / trackRect.width;
+        }
+      }
+      return null;
+    }
+
+    function clickPlayPauseButton(doc, win, now) {
+      if (now - lastPauseClickTime < 750) return;
 
       const buttons = Array.from(doc.querySelectorAll('button, [role="button"], [class*="sse-"]'));
       const playBtn = buttons.find(b => {
         if (b.querySelector('canvas') || b.classList.contains('sse-viewer')) return false;
         const r = b.getBoundingClientRect();
         const label = (b.textContent + ' ' + (b.title || '') + ' ' + (b.ariaLabel || '') + ' ' + b.className).toLowerCase();
-        return /pause|play/.test(label) || (r.top > win.innerHeight * 0.65 && r.left < 140 && r.width > 8 && r.width < 80);
+        return /pause|play/.test(label) || (r.top > win.innerHeight * 0.70 && r.left < 140 && r.width > 8 && r.width < 80);
       });
 
       if (playBtn) {
-        playBtn.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
-        playBtn.dispatchEvent(new PointerEvent('pointerup', { bubbles: true }));
+        lastPauseClickTime = now;
         playBtn.click();
       }
-      autoPlayPaused = true;
     }
 
-    function scrubTimeline(el, win, progress) {
+    function scrubTimeline(el, win, progress, restartDrag = false) {
       if (el.tagName === 'INPUT') {
         const min = parseFloat(el.min || 0);
         const max = parseFloat(el.max || 1);
@@ -767,7 +861,7 @@
         buttons: 1
       };
 
-      if (!isDraggingTimeline) {
+      if (!isDraggingTimeline || restartDrag) {
         el.dispatchEvent(new PointerEvent('pointerdown', { ...baseEvt, pointerId: 1, pointerType: 'mouse', isPrimary: true }));
         el.dispatchEvent(new MouseEvent('mousedown', baseEvt));
         isDraggingTimeline = true;
@@ -775,6 +869,8 @@
 
       el.dispatchEvent(new PointerEvent('pointermove', { ...baseEvt, pointerId: 1, pointerType: 'mouse', isPrimary: true }));
       el.dispatchEvent(new MouseEvent('mousemove', baseEvt));
+      win.dispatchEvent(new PointerEvent('pointermove', { ...baseEvt, pointerId: 1, pointerType: 'mouse', isPrimary: true }));
+      win.dispatchEvent(new MouseEvent('mousemove', baseEvt));
     }
 
     function renderLoop(now) {
@@ -790,37 +886,72 @@
             video.currentTime = targetTime;
             lastAppliedVideoTime = targetTime;
           }
+          if (!videoFirstFramePainted && video.readyState >= 3) {
+            videoFirstFramePainted = true;
+            revealStage();
+          }
         }
       } else if (currentMode === 'splat' && splatIframeLoaded) {
         try {
           const win = splatViewer.contentWindow;
           const doc = splatViewer.contentDocument || win.document;
 
-          if (!timelineTrack || !doc.contains(timelineTrack)) {
-            isDraggingTimeline = false;
-            timelineTrack = detectTimeline(doc, win);
-            if (timelineTrack) {
-              splatReadyTimestamp = now;
-              statusText.textContent = 'Scrollen zum Steuern';
-              pauseAutoPlay(doc, win);
-              scrubTimeline(timelineTrack, win, targetProgress);
-              lastAppliedSplatProgress = targetProgress;
-            }
-          } else {
-            if (Math.abs(targetProgress - lastAppliedSplatProgress) > 0.0003) {
-              scrubTimeline(timelineTrack, win, targetProgress);
-              lastAppliedSplatProgress = targetProgress;
+          // Erst warten, bis SuperSplat die 3D-Szene fertig geladen hat
+          if (!isSplatStillLoading(doc, win)) {
+            if (!timelineTrack || !doc.contains(timelineTrack)) {
+              isDraggingTimeline = false;
+              timelineTrack = detectTimeline(doc, win);
             }
 
-            // Automatischer Fallback: Wenn 2s nach dem Laden die Framerate unter ~14 FPS fällt
-            if (!autoFallbackDisabled && splatReadyTimestamp > 0 && (now - splatReadyTimestamp) > 2000) {
-              if (delta > 72) {
-                lowFpsCounter++;
-                if (lowFpsCounter > 35) {
-                  setRenderMode('video', false);
+            if (timelineTrack) {
+              if (!splatSceneReady && !splatReadyScheduled) {
+                splatReadyScheduled = true;
+                splatReadyTimestamp = now;
+                statusText.textContent = 'Scrollen zum Steuern';
+
+                // Kurz nach dem Laden die Timeline-Bindung setzen & Platzhalter sanft ausblenden
+                setTimeout(() => {
+                  if (currentMode !== 'splat' || !timelineTrack) return;
+                  scrubTimeline(timelineTrack, win, targetProgress, true);
+                  lastAppliedSplatProgress = targetProgress;
+                  playheadCheckPos = measureTimelineValue(timelineTrack);
+                  playheadCheckTime = performance.now();
+                  splatSceneReady = true;
+                  revealStage();
+                }, 250);
+              }
+
+              // Scroll-Position kontinuierlich auf die Zeitleiste übertragen
+              if (Math.abs(targetProgress - lastAppliedSplatProgress) > 0.0003) {
+                scrubTimeline(timelineTrack, win, targetProgress, false);
+                lastAppliedSplatProgress = targetProgress;
+                playheadCheckPos = measureTimelineValue(timelineTrack);
+                playheadCheckTime = now;
+              } else if ((now - lastUserScrollTime) > 180 && (now - playheadCheckTime) > 120) {
+                // Bewegt sich der Playhead ohne Scrollen von selbst? -> Auto-Play aktiv -> einmal pausieren!
+                const currentPos = measureTimelineValue(timelineTrack);
+                if (
+                  currentPos !== null &&
+                  playheadCheckPos !== null &&
+                  Math.abs(currentPos - playheadCheckPos) > 0.003
+                ) {
+                  clickPlayPauseButton(doc, win, now);
+                  scrubTimeline(timelineTrack, win, targetProgress, true);
+                  lastAppliedSplatProgress = targetProgress;
                 }
-              } else {
-                lowFpsCounter = Math.max(0, lowFpsCounter - 1);
+                playheadCheckPos = measureTimelineValue(timelineTrack);
+                playheadCheckTime = now;
+              }
+
+              if (!autoFallbackDisabled && splatSceneReady && splatReadyTimestamp > 0 && (now - splatReadyTimestamp) > 2000) {
+                if (delta > 72) {
+                  lowFpsCounter++;
+                  if (lowFpsCounter > 35) {
+                    setRenderMode('video', false);
+                  }
+                } else {
+                  lowFpsCounter = Math.max(0, lowFpsCounter - 1);
+                }
               }
             }
           }
