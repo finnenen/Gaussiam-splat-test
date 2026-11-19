@@ -374,32 +374,36 @@
     </div>
   </div>
 
-  <script>
+   <script>
     const TOTAL_FRAMES = 180;
 
-    // Exakte Keyframe-Plateaus bei Frame 0, 60, 104, 138 und 180
-    const PLATEAUS = [
-      { id: 'card-0', scrollStart: 0.00, scrollEnd: 0.12, frameStart: 0,     frameEnd: 1.5, isStart: true },
-      { id: 'card-1', scrollStart: 0.22, scrollEnd: 0.36, frameStart: 59,    frameEnd: 61 },
-      { id: 'card-2', scrollStart: 0.46, scrollEnd: 0.60, frameStart: 103,   frameEnd: 105 },
-      { id: 'card-3', scrollStart: 0.70, scrollEnd: 0.84, frameStart: 137,   frameEnd: 139 },
-      { id: 'card-4', scrollStart: 0.91, scrollEnd: 1.00, frameStart: 178.5, frameEnd: 180, isEnd: true }
+    // Start-Plateau auf 1.5 % verkürzt -> Biene bewegt sich sofort beim Scrollen!
+    // Die 4 Fakten-Plateaus (Frames 60, 104, 138, 180) bleiben unverändert.
+        const PLATEAUS = [
+      { id: null,     scrollStart: 0.00, scrollEnd: 0.04,  frameStart: 0,     frameEnd: 2 },
+      { id: 'card-1', scrollStart: 0.20, scrollEnd: 0.35,  frameStart: 59,    frameEnd: 61 },
+      { id: 'card-2', scrollStart: 0.45, scrollEnd: 0.60,  frameStart: 103,   frameEnd: 105 },
+      { id: 'card-3', scrollStart: 0.70, scrollEnd: 0.85,  frameStart: 137,   frameEnd: 139 },
+      { id: 'card-4', scrollStart: 0.92, scrollEnd: 1.00,  frameStart: 178.5, frameEnd: 180, isEnd: true }
     ].map(p => ({
       ...p,
       animStart: p.frameStart / TOTAL_FRAMES,
       animEnd: p.frameEnd / TOTAL_FRAMES
     }));
 
+
     const video = document.getElementById('beeVideo');
     const scrollFill = document.getElementById('scrollFill');
     const plateauIndicator = document.getElementById('plateauIndicator');
-    const cards = PLATEAUS.map(p => ({ ...p, el: document.getElementById(p.id) }));
+    const heroCard = document.getElementById('card-0');
+    const factCards = PLATEAUS
+      .map((p, idx) => ({ ...p, plateauIdx: idx, el: p.id ? document.getElementById(p.id) : null }))
+      .filter(p => p.el);
 
     let targetProgress = 0;
     let lastAppliedTime = -1;
     let iosUnlocked = false;
 
-    // iOS / iPadOS Trick: Aktiviert das sofortige Frame-Scrubbing beim ersten Berühren
     function unlockVideoForIOS() {
       if (iosUnlocked) return;
       video.play().then(() => {
@@ -435,10 +439,21 @@
       return { anim: s, activePlateauIndex: -1, localT: 0 };
     }
 
-    function updateStoryCards(activeIndex, localT) {
+    function updateStoryCards(activeIndex, localT, rawScroll) {
+      // 1. Hero-Text blendet während der ersten 10 % Scrollweg sanft aus, während die Biene schon fliegt
+      const heroFadeEnd = 0.10;
+      if (rawScroll <= heroFadeEnd) {
+        const t = rawScroll / heroFadeEnd;
+        heroCard.style.opacity = 1 - t;
+        heroCard.style.transform = `translateY(${-t * 28}px)`;
+      } else {
+        heroCard.style.opacity = 0;
+      }
+
+      // 2. Fakten-Karten an den 4 Keyframe-Plateaus ein- und ausblenden
       let onFactPlateau = false;
-      cards.forEach((card, idx) => {
-        if (idx !== activeIndex) {
+      factCards.forEach((card) => {
+        if (card.plateauIdx !== activeIndex) {
           card.el.style.opacity = 0;
           card.el.style.transform = 'translateY(24px)';
           return;
@@ -446,7 +461,7 @@
         let opacity = 1;
         let offsetY = 0;
         const fadeWindow = 0.22;
-        if (!card.isStart && localT < fadeWindow) {
+        if (localT < fadeWindow) {
           const t = localT / fadeWindow;
           opacity = t;
           offsetY = (1 - t) * 24;
@@ -457,8 +472,9 @@
         }
         card.el.style.opacity = Math.max(0, Math.min(1, opacity));
         card.el.style.transform = `translateY(${offsetY}px)`;
-        if (!card.isStart) onFactPlateau = true;
+        onFactPlateau = true;
       });
+
       plateauIndicator.classList.toggle('active', onFactPlateau);
     }
 
@@ -473,7 +489,7 @@
       scrollFill.style.width = (rawScroll * 100) + '%';
       const mapped = mapScrollToAnimation(rawScroll);
       targetProgress = mapped.anim;
-      updateStoryCards(mapped.activePlateauIndex, mapped.localT);
+      updateStoryCards(mapped.activePlateauIndex, mapped.localT, rawScroll);
     }
 
     window.addEventListener('scroll', updateScrollTarget, { passive: true });
@@ -481,10 +497,8 @@
     window.addEventListener('resize', updateScrollTarget, { passive: true });
     updateScrollTarget();
 
-    // Synchronisiert das Video bildgenau mit dem Scroll-Fortschritt
     function renderVideoFrame() {
       if (video.readyState >= 2 && video.duration) {
-        // Sicherheitsabstand von 0.02s zum Ende, damit Safari das letzte Bild nicht schwarz schaltet
         const maxTime = Math.max(0, video.duration - 0.02);
         const targetTime = Math.min(maxTime, Math.max(0, targetProgress * maxTime));
 
@@ -504,5 +518,3 @@
       if (e.key === 'Escape') { closeModal('library'); closeModal('portfolio'); }
     });
   </script>
-</body>
-</html>
