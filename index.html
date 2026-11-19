@@ -27,7 +27,7 @@
       pointer-events: none;
     }
 
-    /* Fixierte Vollbild-Videobühne */
+    /* Fixierte Vollbild-Bühne für Video & 3D-Splat */
     .stage {
       position: fixed;
       inset: 0;
@@ -39,16 +39,37 @@
       pointer-events: none;
     }
 
-    #beeVideo {
+    #beeVideo,
+    #splatViewer {
+      position: absolute;
+      inset: 0;
       width: 100%;
       height: 100%;
-      /* Füllt Hoch- und Querformat ohne Balken aus (Biene mittig halten!) */
-      object-fit: cover;
-      object-position: center center;
+      border: none;
       display: block;
+      pointer-events: none;
     }
 
-    /* Schwebendes UI über dem Video */
+    #beeVideo {
+      object-fit: cover;
+      object-position: center center;
+      z-index: 2;
+    }
+
+    #splatViewer {
+      z-index: 1;
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 0.4s ease;
+    }
+
+    #splatViewer.active {
+      z-index: 3;
+      opacity: 1;
+      visibility: visible;
+    }
+
+    /* Schwebendes UI über der Bühne */
     .overlay {
       position: fixed;
       inset: 0;
@@ -69,6 +90,7 @@
       justify-content: space-between;
       align-items: center;
       gap: 1rem;
+      flex-wrap: wrap;
     }
 
     .logo {
@@ -79,10 +101,51 @@
       color: #f5b727;
     }
 
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 0.85rem;
+      pointer-events: auto;
+    }
+
+    /* Render-Modus Switch (3D Splat / Video) */
+    .mode-switch {
+      display: inline-flex;
+      align-items: center;
+      background: rgba(255, 255, 255, 0.08);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      border-radius: 999px;
+      padding: 3px;
+    }
+
+    .mode-btn {
+      background: transparent;
+      border: none;
+      color: rgba(255, 255, 255, 0.72);
+      padding: 0.45rem 0.95rem;
+      border-radius: 999px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.22s ease;
+      white-space: nowrap;
+    }
+
+    .mode-btn:hover {
+      color: #ffffff;
+    }
+
+    .mode-btn.active {
+      background: #f5b727;
+      color: #0a0a0a;
+      box-shadow: 0 2px 10px rgba(245, 183, 39, 0.35);
+    }
+
     nav {
       display: flex;
-      gap: 0.75rem;
-      pointer-events: auto;
+      gap: 0.65rem;
     }
 
     .nav-btn {
@@ -91,9 +154,9 @@
       -webkit-backdrop-filter: blur(12px);
       border: 1px solid rgba(255, 255, 255, 0.16);
       color: #fff;
-      padding: 0.65rem 1.3rem;
+      padding: 0.6rem 1.2rem;
       border-radius: 999px;
-      font-size: 0.9rem;
+      font-size: 0.88rem;
       font-weight: 500;
       cursor: pointer;
       transition: all 0.25s ease;
@@ -113,13 +176,25 @@
       align-items: center;
     }
 
+    /* Eigenständige CSS-Animation für Ein- und Ausblenden an den Schwellenpunkten */
     .story-card {
       position: absolute;
       left: 0;
       max-width: 480px;
       opacity: 0;
-      transform: translateY(24px);
+      transform: translateY(22px);
+      transition: opacity 0.45s cubic-bezier(0.22, 1, 0.36, 1),
+                  transform 0.45s cubic-bezier(0.22, 1, 0.36, 1);
       will-change: opacity, transform;
+    }
+
+    .story-card.hero-style {
+      transform: translateY(-18px);
+    }
+
+    .story-card.visible {
+      opacity: 1;
+      transform: translateY(0);
     }
 
     .story-card.hero-style h1 {
@@ -207,7 +282,7 @@
       text-transform: uppercase;
       color: #f5b727;
       opacity: 0;
-      transition: opacity 0.25s ease;
+      transition: opacity 0.3s ease;
     }
 
     .plateau-indicator.active { opacity: 1; }
@@ -273,9 +348,11 @@
 
     /* Smartphones */
     @media (max-width: 768px) {
-      .overlay { padding: 1.25rem 1.25rem calc(1.25rem + env(safe-area-inset-bottom)); }
-      .logo { font-size: 0.95rem; }
-      .nav-btn { padding: 0.5rem 0.95rem; font-size: 0.8rem; }
+      .overlay { padding: 1.15rem 1.15rem calc(1.15rem + env(safe-area-inset-bottom)); }
+      .logo { font-size: 0.92rem; }
+      .header-actions { gap: 0.5rem; }
+      .mode-btn { padding: 0.38rem 0.72rem; font-size: 0.75rem; }
+      .nav-btn { padding: 0.45rem 0.85rem; font-size: 0.78rem; }
       .story-container { padding-bottom: 1.25rem; }
       .story-card { max-width: 100%; }
       .fact-box { padding: 1.25rem 1.35rem; border-radius: 16px; }
@@ -290,7 +367,7 @@
 
   <div class="scroll-spacer"></div>
 
-  <!-- MP4-Video statt schwerem WebGL-Viewer -->
+  <!-- Vollbild-Bühne: Desktop startet im 3D Splat, Mobilgeräte im Video -->
   <div class="stage">
     <video
       id="beeVideo"
@@ -298,22 +375,31 @@
       muted
       playsinline
       webkit-playsinline
-      preload="auto"
+      preload="metadata"
     ></video>
+    <iframe id="splatViewer" allow="fullscreen; xr-spatial-tracking"></iframe>
   </div>
 
   <div class="overlay">
     <header>
       <div class="logo">Finns Bienenwelt</div>
-      <nav>
-        <button class="nav-btn" onclick="openModal('library')">Library</button>
-        <button class="nav-btn" onclick="openModal('portfolio')">Portfolio</button>
-      </nav>
+
+      <div class="header-actions">
+        <div class="mode-switch" role="group" aria-label="Darstellungsmodus">
+          <button class="mode-btn" id="btnModeSplat" onclick="setRenderMode('splat')">3D Splat</button>
+          <button class="mode-btn" id="btnModeVideo" onclick="setRenderMode('video')">Video</button>
+        </div>
+
+        <nav>
+          <button class="nav-btn" onclick="openModal('library')">Library</button>
+          <button class="nav-btn" onclick="openModal('portfolio')">Portfolio</button>
+        </nav>
+      </div>
     </header>
 
     <div class="story-container">
-      <!-- 1. Frame 0: Einstieg -->
-      <div class="story-card hero-style" id="card-0">
+      <!-- 1. Start-Titel (blendet ab 8 % Scrollweg per CSS-Animation aus) -->
+      <div class="story-card hero-style visible" id="card-0">
         <h1>Finns<br />Bienenwelt</h1>
         <p>Tauche ein in die faszinierende Makro-Welt der Bienen. Scrolle nach unten, um mehr über ihre Wunderwerke und Anatomie zu erfahren.</p>
       </div>
@@ -374,14 +460,15 @@
     </div>
   </div>
 
-   <script>
-    const TOTAL_FRAMES = 180;
+  <script>
+    const DESKTOP_SPLAT_SCENE = 'Biene.html';
+    const MOBILE_SPLAT_SCENE  = 'Biene-mobile.html';
+    const TOTAL_FRAMES        = 180;
 
-    // Start-Plateau auf 1.5 % verkürzt -> Biene bewegt sich sofort beim Scrollen!
-    // Die 4 Fakten-Plateaus (Frames 60, 104, 138, 180) bleiben unverändert.
-        const PLATEAUS = [
-      { id: null,     scrollStart: 0.00, scrollEnd: 0.04,  frameStart: 0,     frameEnd: 2 },
-      { id: 'card-1', scrollStart: 0.20, scrollEnd: 0.35,  frameStart: 59,    frameEnd: 61 },
+    // Exakte Keyframe-Plateaus bei Frame 0, 60, 104, 138 und 180
+    const PLATEAUS = [
+      { id: null,     scrollStart: 0.00, scrollEnd: 0.02,  frameStart: 0,     frameEnd: 2 },
+      { id: 'card-1', scrollStart: 0.19, scrollEnd: 0.34,  frameStart: 59,    frameEnd: 61 },
       { id: 'card-2', scrollStart: 0.45, scrollEnd: 0.60,  frameStart: 103,   frameEnd: 105 },
       { id: 'card-3', scrollStart: 0.70, scrollEnd: 0.85,  frameStart: 137,   frameEnd: 139 },
       { id: 'card-4', scrollStart: 0.92, scrollEnd: 1.00,  frameStart: 178.5, frameEnd: 180, isEnd: true }
@@ -391,18 +478,60 @@
       animEnd: p.frameEnd / TOTAL_FRAMES
     }));
 
-
     const video = document.getElementById('beeVideo');
+    const splatViewer = document.getElementById('splatViewer');
+    const btnModeVideo = document.getElementById('btnModeVideo');
+    const btnModeSplat = document.getElementById('btnModeSplat');
     const scrollFill = document.getElementById('scrollFill');
+    const statusText = document.getElementById('statusText');
     const plateauIndicator = document.getElementById('plateauIndicator');
     const heroCard = document.getElementById('card-0');
     const factCards = PLATEAUS
       .map((p, idx) => ({ ...p, plateauIdx: idx, el: p.id ? document.getElementById(p.id) : null }))
       .filter(p => p.el);
 
+    let currentMode = null; // 'splat' | 'video'
     let targetProgress = 0;
-    let lastAppliedTime = -1;
+
+    // Video-Status
+    let lastAppliedVideoTime = -1;
     let iosUnlocked = false;
+
+    // 3D-Splat-Status
+    let splatInitialized = false;
+    let splatIframeLoaded = false;
+    let timelineTrack = null;
+    let autoPlayPaused = false;
+    let isDraggingTimeline = false;
+    let lastAppliedSplatProgress = -1;
+
+    // Performance-Überwachung für automatischen Fallback
+    let autoFallbackDisabled = false; // Wird true, falls User manuell auf 3D Splat wechselt
+    let splatReadyTimestamp = 0;
+    let lowFpsCounter = 0;
+    let lastFrameTime = performance.now();
+
+    function isMobileDevice() {
+      const isIPad = /iPad/i.test(navigator.userAgent) ||
+        (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+      return isIPad ||
+        /Android|webOS|iPhone|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+        (window.matchMedia && window.matchMedia('(pointer: coarse)').matches && 'ontouchstart' in window);
+    }
+
+    // Prüft vorab auf fehlendes WebGL oder extrem schwache Hardware
+    function isWeakDevice() {
+      try {
+        const testCanvas = document.createElement('canvas');
+        const gl = testCanvas.getContext('webgl2') || testCanvas.getContext('webgl');
+        if (!gl) return true;
+      } catch (e) {
+        return true;
+      }
+      if (navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 2) return true;
+      if (navigator.deviceMemory && navigator.deviceMemory <= 2) return true;
+      return false;
+    }
 
     function unlockVideoForIOS() {
       if (iosUnlocked) return;
@@ -414,6 +543,84 @@
     window.addEventListener('touchstart', unlockVideoForIOS, { once: true, passive: true });
     window.addEventListener('scroll', unlockVideoForIOS, { once: true, passive: true });
 
+    async function loadSplatScene() {
+      if (splatInitialized) return;
+      splatInitialized = true;
+      statusText.textContent = 'Lade 3D-Splat...';
+
+      if (isMobileDevice() && window.location.protocol !== 'file:') {
+        try {
+          const res = await fetch(MOBILE_SPLAT_SCENE, { method: 'HEAD' });
+          if (res.ok) {
+            splatViewer.src = MOBILE_SPLAT_SCENE;
+            return;
+          }
+        } catch (e) {}
+      }
+      splatViewer.src = DESKTOP_SPLAT_SCENE;
+    }
+
+    function setRenderMode(mode, isManual = true) {
+      if (isManual && mode === 'splat') {
+        autoFallbackDisabled = true; // Manueller Klick wird nicht sofort wieder übersteuert
+      }
+      if (currentMode === mode) return;
+      currentMode = mode;
+
+      btnModeSplat.classList.toggle('active', mode === 'splat');
+      btnModeVideo.classList.toggle('active', mode === 'video');
+
+      if (mode === 'splat') {
+        splatViewer.classList.add('active');
+        lastAppliedSplatProgress = -1;
+        lowFpsCounter = 0;
+        if (!splatInitialized) {
+          loadSplatScene();
+        } else if (timelineTrack) {
+          statusText.textContent = 'Scrollen zum Steuern';
+        }
+      } else {
+        splatViewer.classList.remove('active');
+        video.preload = 'auto';
+        lastAppliedVideoTime = -1;
+        statusText.textContent = isManual ? 'Scrollen zum Steuern' : 'Video-Modus (Auto-Optimierung)';
+      }
+    }
+
+    // Startmodus festlegen: Mobil -> Video, Schwacher Laptop -> Video, Desktop -> 3D Splat
+    if (window.location.protocol === 'file:' || isMobileDevice() || isWeakDevice()) {
+      setRenderMode('video', false);
+    } else {
+      setRenderMode('splat', false);
+    }
+
+    splatViewer.addEventListener('load', () => {
+      if (!splatViewer.getAttribute('src')) return;
+      try {
+        const doc = splatViewer.contentDocument || splatViewer.contentWindow.document;
+
+        const hideStyle = doc.createElement('style');
+        hideStyle.textContent = `
+          .sse-viewer > *:not(canvas), #ui, .ui, [class*="sse-"]:not(.sse-viewer):not(canvas), button, input {
+            opacity: 0 !important;
+            pointer-events: none !important;
+          }
+          [class*="sse-timeline"], [class*="sse-scrubber"], [class*="sse-controls"], [class*="timeline"] {
+            display: flex !important;
+            visibility: visible !important;
+          }
+          .sse-viewer, canvas {
+            opacity: 1 !important;
+            visibility: visible !important;
+          }
+        `;
+        doc.head.appendChild(hideStyle);
+        splatIframeLoaded = true;
+      } catch (e) {
+        setRenderMode('video', false);
+      }
+    });
+
     function mapScrollToAnimation(s) {
       for (let i = 0; i < PLATEAUS.length; i++) {
         const p = PLATEAUS[i];
@@ -421,8 +628,7 @@
           const localT = (s - p.scrollStart) / (p.scrollEnd - p.scrollStart || 1);
           return {
             anim: p.animStart + localT * (p.animEnd - p.animStart),
-            activePlateauIndex: i,
-            localT
+            activePlateauIndex: i
           };
         }
         const next = PLATEAUS[i + 1];
@@ -431,48 +637,23 @@
           const easedT = travelT * travelT * (3 - 2 * travelT);
           return {
             anim: p.animEnd + easedT * (next.animStart - p.animEnd),
-            activePlateauIndex: -1,
-            localT: 0
+            activePlateauIndex: -1
           };
         }
       }
-      return { anim: s, activePlateauIndex: -1, localT: 0 };
+      return { anim: s, activePlateauIndex: -1 };
     }
 
-    function updateStoryCards(activeIndex, localT, rawScroll) {
-      // 1. Hero-Text blendet während der ersten 10 % Scrollweg sanft aus, während die Biene schon fliegt
-      const heroFadeEnd = 0.10;
-      if (rawScroll <= heroFadeEnd) {
-        const t = rawScroll / heroFadeEnd;
-        heroCard.style.opacity = 1 - t;
-        heroCard.style.transform = `translateY(${-t * 28}px)`;
-      } else {
-        heroCard.style.opacity = 0;
-      }
+    // Schwellenwert-Steuerung: Löst CSS-Transitions aus statt per Scroll-Pixel zu scrubben
+    function updateStoryCards(activeIndex, rawScroll) {
+      // Hero-Titel sichtbar bis 8 % Scrollweg, danach weicher CSS-Fade-Out
+      heroCard.classList.toggle('visible', rawScroll <= 0.08);
 
-      // 2. Fakten-Karten an den 4 Keyframe-Plateaus ein- und ausblenden
       let onFactPlateau = false;
       factCards.forEach((card) => {
-        if (card.plateauIdx !== activeIndex) {
-          card.el.style.opacity = 0;
-          card.el.style.transform = 'translateY(24px)';
-          return;
-        }
-        let opacity = 1;
-        let offsetY = 0;
-        const fadeWindow = 0.22;
-        if (localT < fadeWindow) {
-          const t = localT / fadeWindow;
-          opacity = t;
-          offsetY = (1 - t) * 24;
-        } else if (!card.isEnd && localT > (1 - fadeWindow)) {
-          const t = (1 - localT) / fadeWindow;
-          opacity = t;
-          offsetY = -(1 - t) * 20;
-        }
-        card.el.style.opacity = Math.max(0, Math.min(1, opacity));
-        card.el.style.transform = `translateY(${offsetY}px)`;
-        onFactPlateau = true;
+        const isActive = card.plateauIdx === activeIndex;
+        card.el.classList.toggle('visible', isActive);
+        if (isActive) onFactPlateau = true;
       });
 
       plateauIndicator.classList.toggle('active', onFactPlateau);
@@ -489,7 +670,7 @@
       scrollFill.style.width = (rawScroll * 100) + '%';
       const mapped = mapScrollToAnimation(rawScroll);
       targetProgress = mapped.anim;
-      updateStoryCards(mapped.activePlateauIndex, mapped.localT, rawScroll);
+      updateStoryCards(mapped.activePlateauIndex, rawScroll);
     }
 
     window.addEventListener('scroll', updateScrollTarget, { passive: true });
@@ -497,19 +678,160 @@
     window.addEventListener('resize', updateScrollTarget, { passive: true });
     updateScrollTarget();
 
-    function renderVideoFrame() {
-      if (video.readyState >= 2 && video.duration) {
-        const maxTime = Math.max(0, video.duration - 0.02);
-        const targetTime = Math.min(maxTime, Math.max(0, targetProgress * maxTime));
+    // --- 3D Splat Hilfsfunktionen ---
+    function detectTimeline(doc, win) {
+      const explicit = doc.querySelector(
+        'input[type="range"], [class*="sse-timeline"], [class*="sse-scrubber"], [class*="sse-progress"], [class*="timeline"], [class*="scrubber"]'
+      );
+      if (explicit) {
+        const r = explicit.getBoundingClientRect();
+        if (r.width > 40) return explicit;
+      }
 
-        if (Math.abs(targetTime - lastAppliedTime) > 0.002 && !video.seeking) {
-          video.currentTime = targetTime;
-          lastAppliedTime = targetTime;
+      const candidates = Array.from(doc.querySelectorAll('div, span'));
+      let best = null;
+      let bestScore = 0;
+
+      for (const el of candidates) {
+        if (el.querySelector('canvas') || el.classList.contains('sse-viewer')) continue;
+        const r = el.getBoundingClientRect();
+        if (
+          r.top > win.innerHeight * 0.65 &&
+          r.width > win.innerWidth * 0.20 &&
+          r.height >= 2 &&
+          r.height <= 48
+        ) {
+          const score = r.width - r.height * 2;
+          if (score > bestScore) {
+            bestScore = score;
+            best = el;
+          }
         }
       }
-      requestAnimationFrame(renderVideoFrame);
+      return best;
     }
-    requestAnimationFrame(renderVideoFrame);
+
+    function pauseAutoPlay(doc, win) {
+      if (autoPlayPaused) return;
+
+      const spaceEvt = new KeyboardEvent('keydown', {
+        key: ' ',
+        code: 'Space',
+        keyCode: 32,
+        which: 32,
+        bubbles: true,
+        cancelable: true
+      });
+      doc.dispatchEvent(spaceEvt);
+      win.dispatchEvent(spaceEvt);
+
+      const buttons = Array.from(doc.querySelectorAll('button, [role="button"], [class*="sse-"]'));
+      const playBtn = buttons.find(b => {
+        if (b.querySelector('canvas') || b.classList.contains('sse-viewer')) return false;
+        const r = b.getBoundingClientRect();
+        const label = (b.textContent + ' ' + (b.title || '') + ' ' + (b.ariaLabel || '') + ' ' + b.className).toLowerCase();
+        return /pause|play/.test(label) || (r.top > win.innerHeight * 0.65 && r.left < 140 && r.width > 8 && r.width < 80);
+      });
+
+      if (playBtn) {
+        playBtn.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+        playBtn.dispatchEvent(new PointerEvent('pointerup', { bubbles: true }));
+        playBtn.click();
+      }
+      autoPlayPaused = true;
+    }
+
+    function scrubTimeline(el, win, progress) {
+      if (el.tagName === 'INPUT') {
+        const min = parseFloat(el.min || 0);
+        const max = parseFloat(el.max || 1);
+        el.value = min + progress * (max - min);
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        return;
+      }
+
+      const rect = el.getBoundingClientRect();
+      if (rect.width <= 10) return;
+
+      const clamped = Math.max(0.001, Math.min(0.999, progress));
+      const x = rect.left + clamped * rect.width;
+      const y = rect.top + rect.height / 2;
+
+      const baseEvt = {
+        bubbles: true,
+        cancelable: true,
+        view: win,
+        clientX: x,
+        clientY: y,
+        button: 0,
+        buttons: 1
+      };
+
+      if (!isDraggingTimeline) {
+        el.dispatchEvent(new PointerEvent('pointerdown', { ...baseEvt, pointerId: 1, pointerType: 'mouse', isPrimary: true }));
+        el.dispatchEvent(new MouseEvent('mousedown', baseEvt));
+        isDraggingTimeline = true;
+      }
+
+      el.dispatchEvent(new PointerEvent('pointermove', { ...baseEvt, pointerId: 1, pointerType: 'mouse', isPrimary: true }));
+      el.dispatchEvent(new MouseEvent('mousemove', baseEvt));
+    }
+
+    function renderLoop(now) {
+      const delta = now - lastFrameTime;
+      lastFrameTime = now;
+
+      if (currentMode === 'video') {
+        if (video.readyState >= 2 && video.duration) {
+          const maxTime = Math.max(0, video.duration - 0.02);
+          const targetTime = Math.min(maxTime, Math.max(0, targetProgress * maxTime));
+
+          if (Math.abs(targetTime - lastAppliedVideoTime) > 0.002 && !video.seeking) {
+            video.currentTime = targetTime;
+            lastAppliedVideoTime = targetTime;
+          }
+        }
+      } else if (currentMode === 'splat' && splatIframeLoaded) {
+        try {
+          const win = splatViewer.contentWindow;
+          const doc = splatViewer.contentDocument || win.document;
+
+          if (!timelineTrack || !doc.contains(timelineTrack)) {
+            isDraggingTimeline = false;
+            timelineTrack = detectTimeline(doc, win);
+            if (timelineTrack) {
+              splatReadyTimestamp = now;
+              statusText.textContent = 'Scrollen zum Steuern';
+              pauseAutoPlay(doc, win);
+              scrubTimeline(timelineTrack, win, targetProgress);
+              lastAppliedSplatProgress = targetProgress;
+            }
+          } else {
+            if (Math.abs(targetProgress - lastAppliedSplatProgress) > 0.0003) {
+              scrubTimeline(timelineTrack, win, targetProgress);
+              lastAppliedSplatProgress = targetProgress;
+            }
+
+            // Automatischer Fallback: Wenn 2s nach dem Laden die Framerate unter ~14 FPS fällt
+            if (!autoFallbackDisabled && splatReadyTimestamp > 0 && (now - splatReadyTimestamp) > 2000) {
+              if (delta > 72) {
+                lowFpsCounter++;
+                if (lowFpsCounter > 35) {
+                  setRenderMode('video', false);
+                }
+              } else {
+                lowFpsCounter = Math.max(0, lowFpsCounter - 1);
+              }
+            }
+          }
+        } catch (err) {
+          setRenderMode('video', false);
+        }
+      }
+
+      requestAnimationFrame(renderLoop);
+    }
+    requestAnimationFrame(renderLoop);
 
     function openModal(name) { document.getElementById('modal-' + name).classList.add('active'); }
     function closeModal(name) { document.getElementById('modal-' + name).classList.remove('active'); }
@@ -518,3 +840,5 @@
       if (e.key === 'Escape') { closeModal('library'); closeModal('portfolio'); }
     });
   </script>
+</body>
+</html>
